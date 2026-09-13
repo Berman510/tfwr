@@ -61,6 +61,41 @@ skips the phase instead of starting a field it can't finish.
 Growth boost everywhere: water below `water_level`, then fertilize until the
 plant is harvestable.
 
+### Dinosaurs (`farm_dinosaurs.farm`)
+
+Rules confirmed by [`dino_probe.py`](dino_probe.py) (32×32, Dinosaurs level 6):
+
+- Putting on the Dinosaur Hat spawns an Apple under the drone. While the
+  drone stands on an Apple, `measure()` returns where the **next** Apple will
+  spawn.
+- Each Apple grows the tail by one and costs 64 Cactus. The field edge is a
+  wall, and a move into the tail just fails (`can_move` predicts it).
+- Removing the hat pays **32 × apples²** Bones. A full field is 1023 Apples
+  = 33,488,928 Bones.
+- Moves get **cheaper** as the tail grows (~0.06 s early, ~0.01 s by 60
+  Apples).
+- **Code between moves costs game time too.** A first shortcut version made
+  38% fewer moves but took 50% *longer* (3042 s vs. 2028 s), because
+  per-move work outweighed the moves saved once moves were cheap.
+
+The drone follows a Hamiltonian cycle that covers every tile. With
+`dinosaur_shortcuts` on, it skips ahead along the cycle toward the next Apple
+while the tail covers less than `dinosaur_shortcut_max_fill` of the field. It
+never skips past the Apple, and never to within `SHORTCUT_BUFFER` (8) steps of
+the tail. The tail always lies in cycle order behind the head, so the plain
+cycle path stays open. The shortcut loop is kept lean: precomputed cycle and
+neighbour tables, `head == apple` instead of `get_entity_type()`, no
+`can_move`, and no per-move telemetry. After the shortcut phase, the drone
+returns to (0,0) along the cycle and runs the bare `cycle_once` loop until the
+field is full.
+
+One caveat: skipped tiles stay as gaps inside the body until the tail passes
+them, and the tail pauses while an Apple is eaten. Trapping the head would take
+about 8 Apples spawning almost exactly in its path in a row. If a planned move is ever
+blocked anyway, the drone takes any open neighbour, stops taking shortcuts for
+the rest of the run, and counts an emergency move. `sim_dino` reports that count
+and whether each run filled the whole field.
+
 ---
 
 ## File map
@@ -77,7 +112,7 @@ plant is harvestable.
 | [`farm_polyculture.py`](farm_polyculture.py) | Companion-planting harvest: scan → plan → fused execute → reject cleanup |
 | [`farm_unlocks.py`](farm_unlocks.py) | Auto-research with operating reserves |
 | [`farm_maze.py`](farm_maze.py) | Gold: maze creation, target-guided DFS solver, maze reuse |
-| [`farm_dinosaurs.py`](farm_dinosaurs.py) | Bones: Hamiltonian-cycle dinosaur run |
+| [`farm_dinosaurs.py`](farm_dinosaurs.py) | Bones: Hamiltonian-cycle dinosaur run with safe shortcuts |
 | [`farm_telemetry.py`](farm_telemetry.py) | Profiler: phase/sub-phase timing, resource deltas, drone utilisation, counters |
 | [`cact_sort.py`](cact_sort.py) | Parallel cactus row/column sorter |
 | [`sun_sort.py`](sun_sort.py) | Serpentine ordering for sunflower harvest points |
@@ -93,9 +128,11 @@ plant is harvestable.
 
 ### Achievement and strategy experiments
 
-These stand alone: the `*_ab`, `hay_bo`, and `hay_fc` targets import nothing
-from the production modules. Each `sim_*` driver runs its target through
-`simulate()` over several seeds and prints a winner.
+Each `sim_*` driver runs its target through `simulate()` over several seeds
+and writes a report to `output.txt` (see [Profiling workflow](#profiling-workflow)),
+ending with a `=== RESULT ===` winner. Most targets stand alone and import
+nothing. `dino_ab` is the exception: it switches settings and calls the
+production `farm_dinosaurs` directly.
 
 | Driver | Target | Question it answers |
 |---|---|---|
@@ -104,6 +141,8 @@ from the production modules. Each `sim_*` driver runs its target through
 | [`sim_fc.py`](sim_fc.py) | [`hay_fc.py`](hay_fc.py) | Sparse vs. full vs. fixed companion layout, steady-state throughput |
 | [`sim_wood.py`](sim_wood.py) | [`wood_ab.py`](wood_ab.py) | Wood layout (Bush / Tree-Bush mix / Tree-poly / Bush-poly) × dry/wet for 1B Wood in 60 s |
 | [`sim_sun.py`](sim_sun.py) | [`sun_ab.py`](sun_ab.py) | Sunflower harvest order: current vs. serpentine vs. nearest-neighbour route |
+| [`sim_dino.py`](sim_dino.py) | [`dino_ab.py`](dino_ab.py) | Dinosaur run time: plain cycle vs. shortcuts until 10% / 25% / 50% fill (Bones must stay at full-field yield) |
+| [`sim_dino.py`](sim_dino.py) (`PROBE = True`) | [`dino_probe.py`](dino_probe.py) | Confirms dinosaur rules: next-Apple `measure()`, walls, tail collisions, Bone formula, move time vs. tail length |
 | — | [`hay_run.py`](hay_run.py) | The real 200M-Hay run, using the winning fixed-companion checkerboard |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
@@ -152,6 +191,8 @@ All in [`farm_config.py`](farm_config.py):
 | `unlock_farm_reserve_multiplier` | `2.0` | Keep this many rotations' worth of planting costs before buying upgrades |
 | `mazes_enabled` / `gold_floor` | `True` / `100000` | Run mazes while Gold is below the floor |
 | `dinosaurs_enabled` / `bone_floor` | `True` / `100000` | Run dinosaurs while Bone is below the floor |
+| `dinosaur_shortcuts` | `True` | Take safe shortcuts along the dinosaur cycle (`False` = plain cycle) |
+| `dinosaur_shortcut_max_fill` | `0.25` | Stop taking shortcuts once the tail covers this fraction of the field, then run the plain cycle |
 
 `HAT_ENABLED` (all off) and `FERTILIZE` (all on) are per-crop toggles.
 
@@ -180,6 +221,8 @@ Reserves kept before any purchase:
 | Skip cactus verification pass | 22×22, 8 drones | 68.98 s | 65.44 s (−5.1%) |
 | Serpentine sunflower order | fixed seeds ×5 | 30.01 s | 25.99 s (−13.4%, 5/5 wins) |
 | Fixed-companion Hay checkerboard | 32 drones, 200M Hay | — | avg ~33.36 s, worst ~33.71 s |
+| Lean dinosaur loop (no per-move overhead) | 32×32 full field, seeds 1–3 | 2027.67 s | 1676.04 s (−17%) |
+| Dinosaur shortcuts until 25% fill | 32×32 full field, seeds 1–3 | 2027.67 s | **976.46 s (−52%)**; 10% fill: 1049.87 s, 50% fill: 1314.99 s |
 
 When a new experiment wins, record the numbers in the module header comment
 and in this table.
@@ -193,6 +236,10 @@ and in this table.
    `<<< FARM_PROFILE_END >>>` in the game's `output.txt`. It includes a phase
    ranking, drone utilisation, sub-phase ranking, the bottleneck, counters,
    and resource rates.
+
+   `output.txt` is **not** in this folder. The game writes it two levels up,
+   at `…\TheFarmerWasReplaced\TheFarmerWasReplaced\output.txt`, and replaces
+   it on every run.
 3. Change the code, re-run with the **same seed**, and compare. Lower
    simulated time wins.
 
@@ -209,5 +256,11 @@ and in this table.
 - **Not tracked** (see [`.gitignore`](.gitignore)): `save.json`, which the game
   rewrites constantly (inventory, unlocks, editor layout), and
   `__builtins__.py`, the editor type stubs.
+- **New script files:** create the code window in the game *before* the file
+  is written from outside (or close the game first). Otherwise the game deletes
+  any `.py` it doesn't know about the next time it saves.
+- **Simulation drivers** report like [`sim_wood.py`](sim_wood.py):
+  `quick_print` to `output.txt` between `<<< NAME_BENCH_BEGIN/END >>>`
+  markers, a header, per-mode AVG/MIN/MAX, and a final `=== RESULT ===`.
 - **Code style:** tabs, generous vertical spacing, `# ===` section banners, and
   one argument per line in calls. New code should match.
