@@ -53,7 +53,16 @@ SETTINGS = {
 
 	"dinosaurs_enabled": True,
 
-	"bone_floor": 100000
+	"bone_floor": 100000,
+
+	# Skip ahead along the Hamiltonian cycle toward the next
+	# Apple when it is provably safe. False = plain cycle.
+	"dinosaur_shortcuts": True,
+
+	# Stop taking shortcuts once the tail covers this fraction
+	# of the field, then run the plain cycle. Shortcuts only pay
+	# off early, while moves are still expensive.
+	"dinosaur_shortcut_max_fill": 0.25
 }
 
 
