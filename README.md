@@ -43,9 +43,9 @@ farm, so an unlock in the middle of a crop phase would destroy it.
 
 Each phase checks up front that it can pay for a whole field. If it can't, it
 skips the phase instead of starting a field it can't finish. The one exception
-is Hay: each companion tile uses the first affordable Bush/Tree/Carrot. Wood and
-Hay run until their gain target, with `continuous_phase_max_seconds` as a
-safety cap.
+is Hay: each companion tile uses the first affordable Bush/Tree/Carrot. Wood,
+Hay and Sunflowers run until their gain target, with
+`continuous_phase_max_seconds` as a safety cap.
 
 1. **Wood** ([`farm_wood`](farm_wood.py), the `wood_run` achievement method):
    plant a Tree/Bush checkerboard (no two Trees touch, even across the world
@@ -58,10 +58,20 @@ safety cap.
    harvesting ready Grass two tiles apart, until Hay has grown by
    `hay_gain_target`.
 3. **Carrots**: full soil field, then Polyculture harvest.
-4. **Sunflowers**: measure every flower and sort them into buckets by petal
-   count (15 → 7). Each bucket is harvested in parallel, largest first,
-   keeping the ≥10-sunflowers-remaining bonus rule. Inside a bucket, points
-   are visited in serpentine order ([`sun_sort`](sun_sort.py)).
+4. **Sunflowers** ([`farm_sunflower`](farm_sunflower.py), the `sunflower_run`
+   Sunflower Master method): plant and water every tile. Then every drone loops
+   over its rows, harvesting any mature flower, replanting once and watering,
+   until Power has grown by `sunflower_gain_target`. Rules confirmed by
+   [`sunflower_probe.py`](archive/sunflower_probe.py):
+   - Petals (7–15) are fixed at planting.
+   - A harvest pays ~1 Power, or **8** when the flower has the max petals on
+     the field and at least 10 sunflowers are on it (young ones count).
+     Tied flowers all pay 8.
+   - Growth takes ~6.8 s plain, ~1.3 s watered, ~0.13 s fertilized.
+
+   About 1 in 9 replanted flowers has 15 petals, so the field keeps paying
+   bonuses without spending actions on re-rolls. Drones spend Power to move
+   and act faster, so the inventory gain slightly under-counts harvested Power.
 5. **Pumpkins**: plant the whole field and replant dead pumpkins until
    the pumpkin at (0,0) and the one at (n-1,n-1) have the same `measure()` id
    (one merged mega-pumpkin). Then harvest once.
@@ -167,7 +177,7 @@ main
     ├── farm_wood       continuous Wood phase   (from wood_run)
     ├── farm_hay        continuous Hay phase    (from hay_run)
     ├── farm_polyculture  Carrot companion harvest
-    ├── sun_sort        Sunflower harvest order (from sun_ab)
+    ├── farm_sunflower  continuous Sunflower phase (from sunflower_run)
     └── cact_sort       Cactus sorter
 
 shared by all:  farm_config · farm_common · farm_megafarm · farm_telemetry
@@ -198,7 +208,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 | [`farm_dinosaurs.py`](farm_dinosaurs.py) | Bones: Hamiltonian-cycle dinosaur run with safe shortcuts |
 | [`farm_telemetry.py`](farm_telemetry.py) | Profiler: phase/sub-phase timing, resource deltas, drone utilisation, counters |
 | [`cact_sort.py`](cact_sort.py) | Parallel cactus row/column sorter |
-| [`sun_sort.py`](sun_sort.py) | Serpentine ordering for sunflower harvest points |
+| [`farm_sunflower.py`](farm_sunflower.py) | Continuous Sunflower phase: plant + water, drones harvest mature flowers, replant and water their rows until `sunflower_gain_target` |
 
 ### Benchmarking and debugging (run manually)
 
@@ -212,7 +222,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 ### Archived experiments (`archive/`)
 
 **Retired.** The winning methods now run in `main` (`farm_wood`, `farm_hay`,
-`sun_sort`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
+`farm_sunflower`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
 [`archive/`](archive/) for reference. The game doesn't show subfolders, so they
 can't be run from there. To re-run one, create its code window in the game
 first, then copy it back to the top level. Each `sim_*` driver ran its target
@@ -227,7 +237,7 @@ exceptions: they switch settings and call production `farm_dinosaurs` /
 | [`sim_bo.py`](archive/sim_bo.py) | [`hay_bo.py`](archive/hay_bo.py) | Harvest all sources vs. only boosted ones vs. wait on boosted ones |
 | [`sim_fc.py`](archive/sim_fc.py) | [`hay_fc.py`](archive/hay_fc.py) | Sparse vs. full vs. fixed companion layout, steady-state throughput |
 | [`sim_wood.py`](archive/sim_wood.py) | [`wood_ab.py`](archive/wood_ab.py) | Wood layout (Bush / Tree-Bush mix / Tree-poly / Bush-poly) × dry/wet for 1B Wood in 60 s |
-| [`sim_sun.py`](archive/sim_sun.py) | [`sun_ab.py`](archive/sun_ab.py) | Sunflower harvest order: current vs. serpentine vs. nearest-neighbour route. **Serpentine won; now in `sun_sort`** |
+| [`sim_sun.py`](archive/sim_sun.py) | [`sun_ab.py`](archive/sun_ab.py) | Sunflower harvest order for the old whole-field sweep: current vs. serpentine vs. nearest-neighbour route. Serpentine won (`sun_sort`, now also retired in favour of `farm_sunflower`) |
 | — | [`hay_run.py`](archive/hay_run.py) | The real 200M-Hay achievement run (fixed-companion checkerboard). **Method now in `farm_hay`** |
 | — | [`wood_run.py`](archive/wood_run.py) | The real 1B-Wood achievement run (pre-watered Tree/Bush checkerboard, avg 53.98 s in sim). **Method now in `farm_wood`** |
 | [`sim_dino.py`](archive/sim_dino.py) | [`dino_ab.py`](archive/dino_ab.py) | Dinosaur run time: plain cycle vs. shortcuts until 10% / 25% / 50% fill, with Bones kept at full-field yield. **25% won; now `farm_dinosaurs`' default** |
@@ -235,6 +245,10 @@ exceptions: they switch settings and call production `farm_dinosaurs` /
 | [`sim_maze.py`](archive/sim_maze.py) | [`maze_ab.py`](archive/maze_ab.py) | Gold: time to +10M. Modes: original solver, full-maze tree paths, split 16/8/6/5/4/3, and 9 = production `farm_maze.farm()`. The header records all four rounds. **Split 5×5 won; now `farm_maze`' default** |
 | [`sim_maze.py`](archive/sim_maze.py) (`PROBE = True`) | [`maze_probe.py`](archive/maze_probe.py) | Confirms maze rules: perfect maze, reuse Gold and wall changes, the 300-reuse cap, drones in mazes, and maze size vs. Weird Substance |
 | — | [`acrobat_run.py`](archive/acrobat_run.py) | **Master Acrobat** ("Do 1000 flips"): `do_a_flip()` always takes 1 s, so it splits 1,050 flips across all free drones. Flips by spawned drones count: 1,056 flips in 34.04 s unlocked it |
+| [`sim_sunflower.py`](archive/sim_sunflower.py) | [`sunflower_ab.py`](archive/sunflower_ab.py) | Power: time to +12,000 after setup, with real Fertilizer/Water/Carrot stock. Field sweep 86.07 s (0/3), re-roll to 15 37.96 s, re-roll + Fertilizer 48.76 s, **mature 15 25.97 s (winner)**. Mode 5 = production `farm_sunflower`: 35.61 s including setup. **Now `farm_sunflower`** |
+| [`sim_sunflower.py`](archive/sim_sunflower.py) (`PROBE = True`) | [`sunflower_probe.py`](archive/sunflower_probe.py) | Confirms Sunflower rules: fixed petals, base vs. bonus Power, the ≥10-flower rule (young flowers count), growth with water/Fertilizer, Power per move |
+| — | [`sunflower_run.py`](archive/sunflower_run.py) | **Sunflower Master** ("Farm 12000 power in 1 minute"): plant + water, then mature-15 harvesting on 32 drones. Real game: +15,006 Power in 32.63 s, and it unlocked |
+| — | [`sun_sort.py`](archive/sun_sort.py) | Serpentine ordering of equal-petal points for the old whole-field sunflower sweep. Retired with that sweep |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
 driver subtracts that time from the `RUN=True` time, so the result measures
@@ -284,6 +298,7 @@ All in [`farm_config.py`](farm_config.py):
 | `water_level` | `0.5` | Water a tile when its water is below this |
 | `wood_gain_target` | `1000000000` | The Wood phase keeps harvesting until Wood has grown by this much |
 | `hay_gain_target` | `200000000` | The Hay phase keeps harvesting until Hay has grown by this much |
+| `sunflower_gain_target` | `20000` | The Sunflower phase keeps harvesting until Power has grown by this much (~27,700 Power/min on 32×32) |
 | `continuous_phase_max_seconds` | `180` | Safety cap on each continuous phase's harvest loop |
 | `timing_enabled` | `True` | Print `[TIMING]` lines from `main` |
 | `auto_unlock_enabled` | `True` | Allow `farm_unlocks.manage()` to buy upgrades |
@@ -334,6 +349,8 @@ Reserves kept before any purchase:
 | Gold: full maze with tree paths (1 drone) | 32×32, +10M Gold, seed 1 | 3369.77 s (original solver) | 2122.77 s (1.59×) |
 | Gold: split 4×4 / 6×6 (calibrated) | 32×32, 32 drones, +10M Gold, seeds 1–3 | 3369.77 s | 146.83 s (22.95×) / 156.19 s with 25 drones (21.58×) |
 | **Gold: split 5×5 (production `farm_maze`)** | 32×32, 32 drones, +10M Gold, seeds 1–3 | 3369.77 s | **127.54 s (26.42×)**, 78,409 Gold/s, 0 anomalies |
+| Power: mature-15 continuous harvest (`sim_sunflower`) | 32×32, 32 drones, +12,000 Power after setup, seeds 1–3 | 86.07 s (old whole-field sweep) | **25.97 s (3.3×)**, 27,726 Power/min |
+| **Power: production `farm_sunflower`** | same, time includes its own planting/watering | 86.07 s | **35.61 s**, 3/3 under 60 s. Real game: +15,006 Power in 32.63 s |
 
 When a new experiment wins, record the numbers in the module header comment
 and in this table.

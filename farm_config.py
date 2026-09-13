@@ -29,6 +29,11 @@ SETTINGS = {
 
 	"hay_gain_target": 200000000,
 
+	# Sunflower phase (sunflower_run method, Sunflower Master):
+	# keep harvesting mature flowers until Power has grown by
+	# this much. ~27,700 Power/min at 32x32 / 32 drones.
+	"sunflower_gain_target": 20000,
+
 	# Safety cap so a phase can never run forever if production
 	# stalls (e.g. replanting becomes unaffordable).
 	"continuous_phase_max_seconds": 180,
