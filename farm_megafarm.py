@@ -991,3 +991,132 @@ def sum_items(
 
 
 	return result
+
+
+# ============================================================
+# STRIPE ROWS
+# ============================================================
+
+def stripe_rows(
+	start,
+	count,
+	size
+):
+
+	rows = []
+
+	row = start
+
+
+	while row < size:
+
+		rows.append(
+			row
+		)
+
+		row = (
+			row + count
+		)
+
+
+	return rows
+
+
+# ============================================================
+# RUN CONTINUOUS STRIPES WITH ARGUMENT
+# ============================================================
+#
+# For long-running workers that loop over their own rows until
+# a shared stop condition (inventory target / deadline), e.g.
+# farm_wood and farm_hay.
+#
+#     worker(rows, arg)
+#
+# receives every row that drone owns.
+#
+# Rows of a stripe whose spawn failed go to the coordinator,
+# so no row is left unfarmed. (Running them serially afterward
+# would be useless: the stop condition is already met.)
+
+def run_stripes_with_arg(
+	worker,
+	size,
+	arg
+):
+
+	count = worker_count(
+		size
+	)
+
+
+	coordinator_rows = stripe_rows(
+		0,
+		count,
+		size
+	)
+
+
+	handles = []
+
+
+	for start in range(
+		1,
+		count
+	):
+
+		rows = stripe_rows(
+			start,
+			count,
+			size
+		)
+
+
+		handle = spawn_drone(
+			worker,
+			rows,
+			arg
+		)
+
+		record_spawn(
+			handle
+		)
+
+
+		if handle != None:
+
+			handles.append(
+				handle
+			)
+
+		else:
+
+			farm_telemetry.add_counter(
+				"megafarm serial fallbacks",
+				1
+			)
+
+
+			for row in rows:
+
+				coordinator_rows.append(
+					row
+				)
+
+
+	record_operation(
+		count,
+		size
+	)
+
+
+	worker(
+		coordinator_rows,
+		arg
+	)
+
+
+	for handle in handles:
+
+		wait_for(
+			handle
+		)

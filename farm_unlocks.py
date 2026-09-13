@@ -198,10 +198,12 @@ def build_normal_reserve():
 	# TREES
 	# --------------------------------------------------------
 	#
-	# Trees occupy roughly half the checkerboard.
+	# Wood phase: Trees on half the checkerboard.
+	# Hay phase: Trees on a third of the companion half.
 
 	tree_count = (
 		area // 2
+		+ area // 6
 	)
 
 
@@ -209,6 +211,20 @@ def build_normal_reserve():
 		reserve,
 		Entities.Tree,
 		tree_count
+	)
+
+
+	# --------------------------------------------------------
+	# BUSHES
+	# --------------------------------------------------------
+	#
+	# Wood phase: Bushes on the other half of the checkerboard.
+	# Hay phase: Bushes as companions (fallback for the rest).
+
+	add_entity_cost(
+		reserve,
+		Entities.Bush,
+		area
 	)
 
 
