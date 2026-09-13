@@ -1,0 +1,5 @@
+# Game-managed save state (inventory, unlocks, editor window layout)
+save.json
+
+# Type stubs generated/supplied for editor autocompletion; not game code
+__builtins__.py
