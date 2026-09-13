@@ -66,7 +66,20 @@ SETTINGS = {
 
 	"mazes_enabled": True,
 
-	"gold_floor": 100000,
+	"gold_floor": 100000000,
+
+	# "split": tile the field with small mazes, one per drone
+	# (sim_maze winner, 25x faster). "single": the original
+	# one-maze DFS solver.
+	"maze_method": "split",
+
+	# Maze side for "split". 5x5 won sim_maze round 3 on 32x32
+	# with 32 drones (4x4: -10%, 6x6: -15%).
+	"maze_split_side": 5,
+
+	# Go back to the crop rotation after this long, even if
+	# gold_floor isn't reached yet.
+	"maze_max_seconds": 3600,
 
 
 	# --------------------------------------------------------
@@ -75,7 +88,7 @@ SETTINGS = {
 
 	"dinosaurs_enabled": True,
 
-	"bone_floor": 100000,
+	"bone_floor": 100000000,
 
 	# Skip ahead along the Hamiltonian cycle toward the next
 	# Apple when it is provably safe. False = plain cycle.

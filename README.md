@@ -32,7 +32,7 @@ the game loads, so switch back to `main` before playing normally.
 | Step | Module | What it does |
 |---|---|---|
 | 1 | [`farm_unlocks`](farm_unlocks.py) | Spends only **surplus** resources on upgrades, in priority order |
-| 2 | [`farm_maze`](farm_maze.py) | If Gold < `gold_floor`, runs maze batches until it's restored |
+| 2 | [`farm_maze`](farm_maze.py) | If Gold < `gold_floor`, tiles the field with small mazes (one per drone) until it's reached |
 | 3 | [`farm_dinosaurs`](farm_dinosaurs.py) | If Bone < `bone_floor`, runs a dinosaur snake run |
 | 4 | [`farm_rotation`](farm_rotation.py) | Runs one full-field crop rotation |
 
@@ -73,7 +73,7 @@ plant is harvestable.
 
 ### Dinosaurs (`farm_dinosaurs.farm`)
 
-Rules confirmed by [`dino_probe.py`](dino_probe.py) (32×32, Dinosaurs level 6):
+Rules confirmed by [`dino_probe.py`](archive/dino_probe.py) (32×32, Dinosaurs level 6):
 
 - Putting on the Dinosaur Hat spawns an Apple under the drone. While the
   drone stands on an Apple, `measure()` returns where the **next** Apple will
@@ -103,8 +103,46 @@ One caveat: skipped tiles stay as gaps inside the body until the tail passes
 them, and the tail pauses while an Apple is eaten. Trapping the head would take
 about 8 Apples spawning almost exactly in its path in a row. If a planned move is ever
 blocked anyway, the drone takes any open neighbour, stops taking shortcuts for
-the rest of the run, and counts an emergency move. `sim_dino` reports that count
-and whether each run filled the whole field.
+the rest of the run, and counts an emergency move. In `sim_dino` (archived),
+every benchmark run filled the whole field with 0 emergency moves.
+
+### Gold (`farm_maze.farm`)
+
+Rules confirmed by [`maze_probe.py`](archive/maze_probe.py) (32×32, Mazes level 6):
+
+- A fresh maze is **perfect**: exactly one route between any two tiles. A move
+  takes about 0.05 s.
+- Reusing the maze (`use_item(Weird_Substance)` on the treasure) pays
+  **side² × 32** Gold immediately, moves the treasure, and removes one wall.
+  Walls are never added.
+- Reuse fails after **300** reuses; `harvest()` then pays once more and turns
+  the maze back to Grass, so each maze gives **301 treasures**.
+- A maze costs **side × 32** Weird Substance, so its size is chosen by how much
+  you use. Spawned drones can move and reuse inside mazes.
+- Mazes are **not** built from the Bush's corner. Placement has to be measured
+  (see below), or edge mazes shift into their neighbours' squares.
+
+Gold per treasure grows with side², but walking distance only grows with the
+side. One big maze has a single treasure at a time, so extra drones can barely
+help. With `maze_method = "split"`, the field is tiled with
+`maze_split_side` × `maze_split_side` mazes, one per drone:
+
+1. **Calibrate:** build one maze with its Bush mid-field, map it, and measure
+   where its lower corner lands relative to the Bush. Then clear it.
+2. **Deploy:** each drone walks to its square's Bush spot (corner + offset),
+   and all start together.
+3. **Per maze:** plant the Bush, create the maze, and map it once into a
+   spanning tree (verifying it fills exactly the drone's square). Then walk
+   tree paths (up to the common ancestor, then down) to each treasure: 300
+   reuses, then the final harvest, then back to the Bush for a new maze.
+   Removed walls never break tree paths.
+4. **Stop** when Gold reaches `gold_floor` or `maze_max_seconds` runs out, then
+   `clear()` so the rotation starts clean.
+
+With only one free drone it uses one full-field maze instead. `maze_method =
+"single"` keeps the original solver (DFS toward the treasure from scratch on
+every trip). Hot loops follow the dinosaur lesson: bare `move()`, tables, and
+no per-move telemetry.
 
 ---
 
@@ -123,7 +161,7 @@ Every script falls into one of three groups:
 ```
 main
 ├── farm_unlocks        auto-research with operating reserves
-├── farm_maze           Gold top-up
+├── farm_maze           Gold top-up (split small mazes)
 ├── farm_dinosaurs      Bone top-up
 └── farm_rotation       one full crop rotation
     ├── farm_wood       continuous Wood phase   (from wood_run)
@@ -137,7 +175,6 @@ shared by all:  farm_config · farm_common · farm_megafarm · farm_telemetry
 tools:  simulate_rotation → benchmark_rotation → farm_rotation
         benchmark_full_cycle → farm_maze, farm_dinosaurs, farm_rotation
         debug_rotation → farm_rotation
-        sim_dino → dino_ab → farm_dinosaurs
 ```
 
 ---
@@ -157,7 +194,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 | [`farm_hay.py`](farm_hay.py) | Continuous Hay phase: Grass + fixed companions, drones harvest their rows until `hay_gain_target` |
 | [`farm_polyculture.py`](farm_polyculture.py) | Carrot companion-planting harvest: scan → plan → fused execute → reject cleanup |
 | [`farm_unlocks.py`](farm_unlocks.py) | Auto-research with operating reserves |
-| [`farm_maze.py`](farm_maze.py) | Gold: maze creation, target-guided DFS solver, maze reuse |
+| [`farm_maze.py`](farm_maze.py) | Gold: split method (calibrated small mazes, one per drone, spanning-tree paths) plus the original single-maze DFS solver |
 | [`farm_dinosaurs.py`](farm_dinosaurs.py) | Bones: Hamiltonian-cycle dinosaur run with safe shortcuts |
 | [`farm_telemetry.py`](farm_telemetry.py) | Profiler: phase/sub-phase timing, resource deltas, drone utilisation, counters |
 | [`cact_sort.py`](cact_sort.py) | Parallel cactus row/column sorter |
@@ -171,18 +208,18 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 | [`benchmark_full_cycle.py`](benchmark_full_cycle.py) | Profiles maze + dinosaurs (if needed) + rotation |
 | [`simulate_rotation.py`](simulate_rotation.py) | Runs `benchmark_rotation` in `simulate()` with a fixed seed and the current unlocks and inventory. The real farm is not touched |
 | [`debug_rotation.py`](debug_rotation.py) | Runs one rotation on a small world (default 6×6) at adjustable speed so you can watch it (continuous phases capped at 20 s) |
-| [`sim_dino.py`](sim_dino.py) → [`dino_ab.py`](dino_ab.py) | Dinosaur run time: plain cycle vs. shortcuts until 10% / 25% / 50% fill. `dino_ab` calls production `farm_dinosaurs` directly; Bones must stay at full-field yield |
-| [`sim_dino.py`](sim_dino.py) (`PROBE = True`) → [`dino_probe.py`](dino_probe.py) | Confirms dinosaur rules: next-Apple `measure()`, walls, tail collisions, Bone formula, move time vs. tail length |
 
 ### Archived experiments (`archive/`)
 
 **Retired.** The winning methods now run in `main` (`farm_wood`, `farm_hay`,
-`sun_sort`), and these scripts are kept in [`archive/`](archive/) for
-reference. The game doesn't show subfolders, so they can't be run from there;
-copy one back to the top level (and create its code window first) to re-run
-it. Each `sim_*` driver ran its target through `simulate()` over several seeds
-and reported a `=== RESULT ===` winner; the targets stand alone and import
-nothing.
+`sun_sort`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
+[`archive/`](archive/) for reference. The game doesn't show subfolders, so they
+can't be run from there. To re-run one, create its code window in the game
+first, then copy it back to the top level. Each `sim_*` driver ran its target
+through `simulate()` over several seeds and reported a `=== RESULT ===` winner.
+Most targets stand alone and import nothing. `dino_ab` and `maze_ab` are the
+exceptions: they switch settings and call production `farm_dinosaurs` /
+`farm_maze`, so re-running them measures the current code.
 
 | Driver | Target | Question it answers |
 |---|---|---|
@@ -193,6 +230,10 @@ nothing.
 | [`sim_sun.py`](archive/sim_sun.py) | [`sun_ab.py`](archive/sun_ab.py) | Sunflower harvest order: current vs. serpentine vs. nearest-neighbour route. **Serpentine won; now in `sun_sort`** |
 | — | [`hay_run.py`](archive/hay_run.py) | The real 200M-Hay achievement run (fixed-companion checkerboard). **Method now in `farm_hay`** |
 | — | [`wood_run.py`](archive/wood_run.py) | The real 1B-Wood achievement run (pre-watered Tree/Bush checkerboard, avg 53.98 s in sim). **Method now in `farm_wood`** |
+| [`sim_dino.py`](archive/sim_dino.py) | [`dino_ab.py`](archive/dino_ab.py) | Dinosaur run time: plain cycle vs. shortcuts until 10% / 25% / 50% fill, with Bones kept at full-field yield. **25% won; now `farm_dinosaurs`' default** |
+| [`sim_dino.py`](archive/sim_dino.py) (`PROBE = True`) | [`dino_probe.py`](archive/dino_probe.py) | Confirms dinosaur rules: next-Apple `measure()`, walls, tail collisions, Bone formula, move time vs. tail length |
+| [`sim_maze.py`](archive/sim_maze.py) | [`maze_ab.py`](archive/maze_ab.py) | Gold: time to +10M. Modes: original solver, full-maze tree paths, split 16/8/6/5/4/3, and 9 = production `farm_maze.farm()`. The header records all four rounds. **Split 5×5 won; now `farm_maze`' default** |
+| [`sim_maze.py`](archive/sim_maze.py) (`PROBE = True`) | [`maze_probe.py`](archive/maze_probe.py) | Confirms maze rules: perfect maze, reuse Gold and wall changes, the 300-reuse cap, drones in mazes, and maze size vs. Weird Substance |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
 driver subtracts that time from the `RUN=True` time, so the result measures
@@ -246,8 +287,11 @@ All in [`farm_config.py`](farm_config.py):
 | `timing_enabled` | `True` | Print `[TIMING]` lines from `main` |
 | `auto_unlock_enabled` | `True` | Allow `farm_unlocks.manage()` to buy upgrades |
 | `unlock_farm_reserve_multiplier` | `2.0` | Keep this many rotations' worth of planting costs before buying upgrades |
-| `mazes_enabled` / `gold_floor` | `True` / `100000` | Run mazes while Gold is below the floor |
-| `dinosaurs_enabled` / `bone_floor` | `True` / `100000` | Run dinosaurs while Bone is below the floor |
+| `mazes_enabled` / `gold_floor` | `True` / `100000000` | Run mazes while Gold is below the floor (100M = the last upgrades' cost) |
+| `maze_method` | `"split"` | `"split"`: small mazes, one per drone. `"single"`: original one-maze solver |
+| `maze_split_side` | `5` | Maze side for `"split"` (5×5 won on 32×32 with 32 drones) |
+| `maze_max_seconds` | `3600` | Return to the crop rotation after this long even if `gold_floor` isn't reached |
+| `dinosaurs_enabled` / `bone_floor` | `True` / `100000000` | Run dinosaurs while Bone is below the floor |
 | `dinosaur_shortcuts` | `True` | Take safe shortcuts along the dinosaur cycle (`False` = plain cycle) |
 | `dinosaur_shortcut_max_fill` | `0.25` | Stop taking shortcuts once the tail covers this fraction of the field, then run the plain cycle |
 
@@ -265,8 +309,11 @@ count.
 
 Reserves kept before any purchase:
 - 2× one rotation's planting cost (pumpkins count as 3 fields for replants)
-- the Gold and Bone floors
-- Weird Substance for one maze, when Gold is low
+- the Gold and Bone floors, **except** for an upgrade that costs at least the
+  whole floor. The floor is the savings for that upgrade, so it isn't reserved
+  on top of the cost (otherwise a 100M-Gold upgrade would need 200M).
+- Weird Substance for one small maze per drone (`"split"`) or one full maze
+  (`"single"`), when Gold is low
 - a full board of Apples, when Bone is low
 
 ---
@@ -283,6 +330,9 @@ Reserves kept before any purchase:
 | Continuous Wood phase in `main` (`farm_wood`) | 32×32, 32 drones, `simulate_rotation` seed 1 | — | 1B Wood in 54.12 s harvest (+8.93 s plant / pre-water) |
 | Continuous Hay phase in `main` (`farm_hay`) | 32×32, 32 drones, `simulate_rotation` seed 1 | — | 200M Hay in 34.64 s harvest (+3.63 s companions) |
 | Full six-phase rotation | 32×32, 32 drones, `simulate_rotation` seed 1 | — | 245.23 s (Wood 63.08, Cactus 57.23, Sunflowers 41.60, Hay 38.30, Carrots 26.14, Pumpkins 17.11) |
+| Gold: full maze with tree paths (1 drone) | 32×32, +10M Gold, seed 1 | 3369.77 s (original solver) | 2122.77 s (1.59×) |
+| Gold: split 4×4 / 6×6 (calibrated) | 32×32, 32 drones, +10M Gold, seeds 1–3 | 3369.77 s | 146.83 s (22.95×) / 156.19 s with 25 drones (21.58×) |
+| **Gold: split 5×5 (production `farm_maze`)** | 32×32, 32 drones, +10M Gold, seeds 1–3 | 3369.77 s | **127.54 s (26.42×)**, 78,409 Gold/s, 0 anomalies |
 
 When a new experiment wins, record the numbers in the module header comment
 and in this table.
@@ -319,6 +369,10 @@ and in this table.
 - **New script files:** create the code window in the game *before* the file
   is written from outside (or close the game first). Otherwise the game deletes
   any `.py` it doesn't know about the next time it saves.
+- **Retiring scripts:** copy them into `archive/` first, then close their
+  windows *in the game* (which deletes the top-level files) and exit normally.
+  Files deleted while the game is closed come back on the next launch, because
+  Steam Cloud syncs this save folder.
 - **Simulation drivers** report like [`sim_wood.py`](archive/sim_wood.py):
   `quick_print` to `output.txt` between `<<< NAME_BENCH_BEGIN/END >>>`
   markers, a header, per-mode AVG/MIN/MAX, and a final `=== RESULT ===`.

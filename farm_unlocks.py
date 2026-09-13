@@ -1,4 +1,5 @@
 import farm_config
+import farm_maze
 
 
 # ============================================================
@@ -371,12 +372,9 @@ def add_special_reserves(
 
 		if maze_level > 0:
 
-			maze_substance = (
-				size
-				* 2 ** (
-					maze_level - 1
-				)
-			)
+			# One maze per drone for the split method, one full
+			# maze for the single method.
+			maze_substance = farm_maze.substance_reserve()
 
 
 			set_minimum(
@@ -434,6 +432,27 @@ def build_reserve():
 
 
 # ============================================================
+# STOCKPILE FLOORS
+# ============================================================
+
+def floor_for(
+	item
+):
+
+	if item == Items.Gold:
+
+		return farm_config.SETTINGS["gold_floor"]
+
+
+	if item == Items.Bone:
+
+		return farm_config.SETTINGS["bone_floor"]
+
+
+	return 0
+
+
+# ============================================================
 # CHECK WHETHER AN UPGRADE IS AFFORDABLE
 # ============================================================
 
@@ -485,6 +504,32 @@ def can_purchase(
 			reserved = reserve[
 				item
 			]
+
+
+		# ----------------------------------------------------
+		# FLOOR SAVED FOR THIS UPGRADE
+		# ----------------------------------------------------
+		#
+		# gold_floor / bone_floor exist to stockpile for
+		# upgrades. When this upgrade costs at least the whole
+		# floor, the floor IS the savings for it, so don't
+		# reserve it on top. Otherwise a 100M-Gold upgrade
+		# with a 100M gold_floor would need 200M Gold.
+		#
+		# Cheaper upgrades still can't dip into the floor.
+
+		floor = floor_for(
+			item
+		)
+
+
+		if (
+			floor > 0
+			and
+			cost[item] >= floor
+		):
+
+			reserved = 0
 
 
 		required = (
