@@ -1,6 +1,6 @@
 import farm_common
 import farm_megafarm
-import farm_polyculture
+import farm_carrot
 import farm_telemetry
 import farm_wood
 import farm_hay
@@ -146,36 +146,6 @@ def check_soil_row(
 
 
 # ============================================================
-# HARVEST ROW
-# ============================================================
-
-def harvest_row(
-	row
-):
-
-	size = get_world_size()
-
-
-	move_to_row_start(
-		row
-	)
-
-
-	for x in range(size):
-
-		if can_harvest():
-
-			harvest()
-
-
-		if x < size - 1:
-
-			move(
-				East
-			)
-
-
-# ============================================================
 # PREPARE SOIL FIELD
 # ============================================================
 
@@ -254,95 +224,6 @@ def wait_for_soil_field(
 
 
 	return passes
-
-
-# ============================================================
-# HARVEST FULL FIELD
-# ============================================================
-
-def harvest_entire_field(
-	size
-):
-
-	farm_megafarm.run_rows(
-		harvest_row,
-		size
-	)
-
-
-# ============================================================
-# CARROTS
-# ============================================================
-
-def farm_carrots():
-
-	start = farm_telemetry.subphase_start(
-		"prepare / grow"
-	)
-
-
-	size, ready = prepare_soil_field(
-		Entities.Carrot,
-		1
-	)
-
-
-	if size == 0:
-
-		farm_telemetry.subphase_end(
-			"prepare / grow",
-			start
-		)
-
-		return
-
-
-	passes = 0
-
-
-	if not ready:
-
-		passes = wait_for_soil_field(
-			Entities.Carrot,
-			size
-		)
-
-
-	farm_telemetry.subphase_end(
-		"prepare / grow",
-		start
-	)
-
-
-	farm_telemetry.add_counter(
-		"carrot readiness passes",
-		passes
-	)
-
-
-	if farm_polyculture.enabled():
-
-		farm_polyculture.harvest_carrot_field(
-			size
-		)
-
-
-	else:
-
-		start = farm_telemetry.subphase_start(
-			"harvest"
-		)
-
-
-		harvest_entire_field(
-			size
-		)
-
-
-		farm_telemetry.subphase_end(
-			"harvest",
-			start
-		)
 
 
 # ============================================================
@@ -762,7 +643,7 @@ def run_cycle():
 		"carrots"
 	)
 
-	farm_carrots()
+	farm_carrot.farm()
 
 	farm_telemetry.phase_end(
 		"carrots",
