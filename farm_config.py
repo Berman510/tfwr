@@ -34,6 +34,11 @@ SETTINGS = {
 	# this much. ~27,700 Power/min at 32x32 / 32 drones.
 	"sunflower_gain_target": 20000,
 
+	# Carrot phase (carrot_run method, Carrot Master): keep
+	# harvesting until Carrots have grown by this much.
+	# ~294M Carrots/min at 32x32 / 32 drones.
+	"carrot_gain_target": 200000000,
+
 	# Safety cap so a phase can never run forever if production
 	# stalls (e.g. replanting becomes unaffordable).
 	"continuous_phase_max_seconds": 180,
@@ -139,7 +144,8 @@ HAT_ENABLED = {
 FERTILIZE = {
 	Entities.Grass: True,
 	Entities.Tree: True,
-	Entities.Carrot: True,
+	# carrot_probe: Fertilizer HALVES carrot yield (512 -> 256).
+	Entities.Carrot: False,
 	Entities.Sunflower: True,
 	Entities.Pumpkin: True,
 	Entities.Cactus: True

@@ -44,7 +44,7 @@ farm, so an unlock in the middle of a crop phase would destroy it.
 Each phase checks up front that it can pay for a whole field. If it can't, it
 skips the phase instead of starting a field it can't finish. The one exception
 is Hay: each companion tile uses the first affordable Bush/Tree/Carrot. Wood,
-Hay and Sunflowers run until their gain target, with
+Hay, Carrots and Sunflowers run until their gain target, with
 `continuous_phase_max_seconds` as a safety cap.
 
 1. **Wood** ([`farm_wood`](farm_wood.py), the `wood_run` achievement method):
@@ -57,7 +57,23 @@ Hay and Sunflowers run until their gain target, with
    other (with affordable fallbacks). Every drone loops over its rows,
    harvesting ready Grass two tiles apart, until Hay has grown by
    `hay_gain_target`.
-3. **Carrots**: full soil field, then Polyculture harvest.
+3. **Carrots** ([`farm_carrot`](farm_carrot.py), the `carrot_run` Carrot Master
+   method): till every tile to soil. Put a carrot on one tile in four
+   (`(x + 2y) % 4 == 0`); every other tile is for companions. Each carrot is
+   replanted until its companion request lands on a companion tile, watered,
+   and its requested companion is planted there. Every drone then loops over
+   its rows' carrots, harvesting and re-planting the same way, until Carrots
+   have grown by `carrot_gain_target`. Rules confirmed by
+   [`carrot_probe.py`](archive/carrot_probe.py):
+   - A Carrot costs 512 Hay + 512 Wood. Grass, Bush and Tree are free.
+   - A harvest pays 512, or **81,920 (160×)** with the exact requested type on
+     the exact requested tile (Bush/Tree/Grass within 3 tiles, fixed at
+     planting). The companion may be young. Wrong type or wrong tile: 512.
+   - Growth takes ~5.9 s plain, ~1.1 s watered. **Fertilizer halves carrot
+     yield**, so it's off for Carrots.
+
+   One carrot in four beat one in two (neighbours overwrite each other's
+   companions) and one in eight (drones walk and wait more).
 4. **Sunflowers** ([`farm_sunflower`](farm_sunflower.py), the `sunflower_run`
    Sunflower Master method): plant and water every tile. Then every drone loops
    over its rows, harvesting any mature flower, replanting once and watering,
@@ -176,7 +192,7 @@ main
 └── farm_rotation       one full crop rotation
     ├── farm_wood       continuous Wood phase   (from wood_run)
     ├── farm_hay        continuous Hay phase    (from hay_run)
-    ├── farm_polyculture  Carrot companion harvest
+    ├── farm_carrot     continuous Carrot phase (from carrot_run)
     ├── farm_sunflower  continuous Sunflower phase (from sunflower_run)
     └── cact_sort       Cactus sorter
 
@@ -202,7 +218,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 | [`farm_rotation.py`](farm_rotation.py) | The six-phase crop rotation |
 | [`farm_wood.py`](farm_wood.py) | Continuous Wood phase: Tree/Bush checkerboard, pre-watered, drones harvest/replant their rows until `wood_gain_target` |
 | [`farm_hay.py`](farm_hay.py) | Continuous Hay phase: Grass + fixed companions, drones harvest their rows until `hay_gain_target` |
-| [`farm_polyculture.py`](farm_polyculture.py) | Carrot companion-planting harvest: scan → plan → fused execute → reject cleanup |
+| [`farm_carrot.py`](farm_carrot.py) | Continuous Carrot phase: one carrot per four tiles, each replanted until its companion request is on a companion tile, companions placed, drones harvest/replant until `carrot_gain_target` |
 | [`farm_unlocks.py`](farm_unlocks.py) | Auto-research with operating reserves |
 | [`farm_maze.py`](farm_maze.py) | Gold: split method (calibrated small mazes, one per drone, spanning-tree paths) plus the original single-maze DFS solver |
 | [`farm_dinosaurs.py`](farm_dinosaurs.py) | Bones: Hamiltonian-cycle dinosaur run with safe shortcuts |
@@ -222,7 +238,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 ### Archived experiments (`archive/`)
 
 **Retired.** The winning methods now run in `main` (`farm_wood`, `farm_hay`,
-`farm_sunflower`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
+`farm_sunflower`, `farm_carrot`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
 [`archive/`](archive/) for reference. The game doesn't show subfolders, so they
 can't be run from there. To re-run one, create its code window in the game
 first, then copy it back to the top level. Each `sim_*` driver ran its target
@@ -249,6 +265,10 @@ exceptions: they switch settings and call production `farm_dinosaurs` /
 | [`sim_sunflower.py`](archive/sim_sunflower.py) (`PROBE = True`) | [`sunflower_probe.py`](archive/sunflower_probe.py) | Confirms Sunflower rules: fixed petals, base vs. bonus Power, the ≥10-flower rule (young flowers count), growth with water/Fertilizer, Power per move |
 | — | [`sunflower_run.py`](archive/sunflower_run.py) | **Sunflower Master** ("Farm 12000 power in 1 minute"): plant + water, then mature-15 harvesting on 32 drones. Real game: +15,006 Power in 32.63 s, and it unlocked |
 | — | [`sun_sort.py`](archive/sun_sort.py) | Serpentine ordering of equal-petal points for the old whole-field sunflower sweep. Retired with that sweep |
+| [`sim_carrot.py`](archive/sim_carrot.py) | [`carrot_ab.py`](archive/carrot_ab.py) | Carrots: time to +200M after setup, with real Hay/Wood/Water stock. Round 1: old `farm_carrots` 244.16 s (0/3), pair sweep 52.10 s, no water 58.75 s, no re-roll 50.02 s. Round 2 (carrot density): ½ 50.03 s, ¼ no re-roll 43.66 s, ⅛ 46.86 s, **¼ pair sweep 40.87 s (winner)**. Mode 8 = production `farm_carrot`. **Now `farm_carrot`** |
+| [`sim_carrot.py`](archive/sim_carrot.py) (`PROBE = True`) | [`carrot_probe.py`](archive/carrot_probe.py) | Confirms Carrot rules: cost, base vs. companion yield (exact type + tile, young companion OK), fixed requests, growth with water, Fertilizer halving yield |
+| — | [`carrot_run.py`](archive/carrot_run.py) | **Carrot Master** ("Farm 200 million carrots in 1 minute"): ¼-density pair sweep on 32 drones. Real game: +251M Carrots in 50.95 s, and it unlocked |
+| — | [`farm_polyculture.py`](archive/farm_polyculture.py) | The old Carrot companion harvest (scan → plan → fused execute → reject cleanup), used only by the old `farm_carrots`. Retired with it |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
 driver subtracts that time from the `RUN=True` time, so the result measures
@@ -299,6 +319,7 @@ All in [`farm_config.py`](farm_config.py):
 | `wood_gain_target` | `1000000000` | The Wood phase keeps harvesting until Wood has grown by this much |
 | `hay_gain_target` | `200000000` | The Hay phase keeps harvesting until Hay has grown by this much |
 | `sunflower_gain_target` | `20000` | The Sunflower phase keeps harvesting until Power has grown by this much (~27,700 Power/min on 32×32) |
+| `carrot_gain_target` | `200000000` | The Carrot phase keeps harvesting until Carrots have grown by this much (~294M Carrots/min on 32×32) |
 | `continuous_phase_max_seconds` | `180` | Safety cap on each continuous phase's harvest loop |
 | `timing_enabled` | `True` | Print `[TIMING]` lines from `main` |
 | `auto_unlock_enabled` | `True` | Allow `farm_unlocks.manage()` to buy upgrades |
@@ -311,7 +332,8 @@ All in [`farm_config.py`](farm_config.py):
 | `dinosaur_shortcuts` | `True` | Take safe shortcuts along the dinosaur cycle (`False` = plain cycle) |
 | `dinosaur_shortcut_max_fill` | `0.25` | Stop taking shortcuts once the tail covers this fraction of the field, then run the plain cycle |
 
-`HAT_ENABLED` (all off) and `FERTILIZE` (all on) are per-crop toggles.
+`HAT_ENABLED` (all off) and `FERTILIZE` (on for everything except Carrots,
+where Fertilizer halves the yield) are per-crop toggles.
 
 ### Upgrade priority
 
@@ -351,6 +373,8 @@ Reserves kept before any purchase:
 | **Gold: split 5×5 (production `farm_maze`)** | 32×32, 32 drones, +10M Gold, seeds 1–3 | 3369.77 s | **127.54 s (26.42×)**, 78,409 Gold/s, 0 anomalies |
 | Power: mature-15 continuous harvest (`sim_sunflower`) | 32×32, 32 drones, +12,000 Power after setup, seeds 1–3 | 86.07 s (old whole-field sweep) | **25.97 s (3.3×)**, 27,726 Power/min |
 | **Power: production `farm_sunflower`** | same, time includes its own planting/watering | 86.07 s | **35.61 s**, 3/3 under 60 s. Real game: +15,006 Power in 32.63 s |
+| Carrots: ¼-density pair sweep (`sim_carrot`) | 32×32, 32 drones, +200M Carrots after setup, seeds 1–3 | 244.16 s (old `farm_carrots` + Polyculture) | **40.87 s (6.0×)**, 293.6M Carrots/min. Real game: +251M in 50.95 s |
+| **Carrots: production `farm_carrot`** | same, time includes its own soil/planting | 244.16 s | **50.95 s**, 3/3 under 60 s |
 
 When a new experiment wins, record the numbers in the module header comment
 and in this table.
