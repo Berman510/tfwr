@@ -13,6 +13,28 @@ SETTINGS = {
 
 
 	# --------------------------------------------------------
+	# CONTINUOUS WOOD / HAY PHASES
+	# --------------------------------------------------------
+	#
+	# Each phase keeps harvesting until it has GAINED this much
+	# of its resource, using the proven achievement methods:
+	#
+	#     Wood: wood_run  (Tree / Bush checkerboard, pre-watered)
+	#     Hay:  hay_run   (Grass + fixed Bush/Tree/Carrot companions)
+	#
+	# Defaults match the validated achievement windows
+	# (1B Wood ~54 sec, 200M Hay ~33 sec at 32x32 / 32 drones).
+
+	"wood_gain_target": 1000000000,
+
+	"hay_gain_target": 200000000,
+
+	# Safety cap so a phase can never run forever if production
+	# stalls (e.g. replanting becomes unaffordable).
+	"continuous_phase_max_seconds": 180,
+
+
+	# --------------------------------------------------------
 	# TIMING
 	# --------------------------------------------------------
 

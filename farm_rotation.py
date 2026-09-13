@@ -2,6 +2,8 @@ import farm_common
 import farm_megafarm
 import farm_polyculture
 import farm_telemetry
+import farm_wood
+import farm_hay
 import cact_sort
 import sun_sort
 
@@ -266,323 +268,6 @@ def harvest_entire_field(
 		harvest_row,
 		size
 	)
-
-
-# ============================================================
-# TREE CHECKERBOARD
-# ============================================================
-
-def is_tree_tile(
-	x,
-	y,
-	size
-):
-
-	if size % 2 == 1:
-
-		if x == size - 1:
-
-			return False
-
-
-		if y == size - 1:
-
-			return False
-
-
-	return (
-		(x + y) % 2 == 0
-	)
-
-
-def tree_count_for_world(
-	size
-):
-
-	if size % 2 == 0:
-
-		return (
-			size
-			* size
-			// 2
-		)
-
-
-	effective = (
-		size - 1
-	)
-
-
-	return (
-		effective
-		* effective
-		// 2
-	)
-
-
-# ============================================================
-# TREE / HAY PREPARATION
-# ============================================================
-
-def prepare_wood_hay_row(
-	row
-):
-
-	size = get_world_size()
-
-	row_ready = True
-
-
-	move_to_row_start(
-		row
-	)
-
-
-	for x in range(size):
-
-		farm_common.harvest_reset_grass()
-
-		farm_common.make_grassland()
-
-
-		if is_tree_tile(
-			x,
-			row,
-			size
-		):
-
-			if farm_common.plant_if_affordable(
-				Entities.Tree
-			):
-
-				farm_common.boost_growth(
-					Entities.Tree
-				)
-
-
-			if get_entity_type() != Entities.Tree:
-
-				row_ready = False
-
-			elif not can_harvest():
-
-				row_ready = False
-
-
-		else:
-
-			if get_entity_type() != Entities.Grass:
-
-				row_ready = False
-
-
-			elif not can_harvest():
-
-				farm_common.boost_growth(
-					Entities.Grass
-				)
-
-
-				if not can_harvest():
-
-					row_ready = False
-
-
-		if x < size - 1:
-
-			move(
-				East
-			)
-
-
-	return row_ready
-
-
-# ============================================================
-# TREE / HAY READINESS
-# ============================================================
-
-def check_wood_hay_row(
-	row
-):
-
-	size = get_world_size()
-
-	row_ready = True
-
-
-	move_to_row_start(
-		row
-	)
-
-
-	for x in range(size):
-
-		farm_common.make_grassland()
-
-		entity = get_entity_type()
-
-
-		if is_tree_tile(
-			x,
-			row,
-			size
-		):
-
-			if entity != Entities.Tree:
-
-				if entity != None:
-
-					harvest()
-
-
-				if farm_common.plant_if_affordable(
-					Entities.Tree
-				):
-
-					farm_common.boost_growth(
-						Entities.Tree
-					)
-
-
-			elif not can_harvest():
-
-				farm_common.boost_growth(
-					Entities.Tree
-				)
-
-
-			if get_entity_type() != Entities.Tree:
-
-				row_ready = False
-
-			elif not can_harvest():
-
-				row_ready = False
-
-
-		else:
-
-			if entity != Entities.Grass:
-
-				if entity != None:
-
-					harvest()
-
-
-				row_ready = False
-
-
-			else:
-
-				if not can_harvest():
-
-					farm_common.boost_growth(
-						Entities.Grass
-					)
-
-
-				if not can_harvest():
-
-					row_ready = False
-
-
-		if x < size - 1:
-
-			move(
-				East
-			)
-
-
-	return row_ready
-
-
-# ============================================================
-# WOOD / HAY
-# ============================================================
-
-def farm_wood_hay():
-
-	size = get_world_size()
-
-
-	tree_count = tree_count_for_world(
-		size
-	)
-
-
-	if not farm_common.can_afford(
-		Entities.Tree,
-		tree_count
-	):
-
-		return
-
-
-	start = farm_telemetry.subphase_start(
-		"prepare / grow"
-	)
-
-
-	farm_common.clear_field()
-
-
-	ready = farm_megafarm.run_rows_bool(
-		prepare_wood_hay_row,
-		size
-	)
-
-
-	passes = 0
-
-
-	if not ready:
-
-		while not farm_megafarm.run_rows_bool(
-			check_wood_hay_row,
-			size
-		):
-
-			passes = (
-				passes + 1
-			)
-
-
-	farm_telemetry.subphase_end(
-		"prepare / grow",
-		start
-	)
-
-
-	farm_telemetry.add_counter(
-		"wood/hay readiness passes",
-		passes
-	)
-
-
-	if farm_polyculture.enabled():
-
-		farm_polyculture.harvest_wood_hay_field(
-			size
-		)
-
-
-	else:
-
-		start = farm_telemetry.subphase_start(
-			"harvest"
-		)
-
-
-		harvest_entire_field(
-			size
-		)
-
-
-		farm_telemetry.subphase_end(
-			"harvest",
-			start
-		)
 
 
 # ============================================================
@@ -1380,13 +1065,25 @@ def farm_cactus():
 def run_cycle():
 
 	start = farm_telemetry.phase_start(
-		"wood/hay"
+		"wood"
 	)
 
-	farm_wood_hay()
+	farm_wood.farm()
 
 	farm_telemetry.phase_end(
-		"wood/hay",
+		"wood",
+		start
+	)
+
+
+	start = farm_telemetry.phase_start(
+		"hay"
+	)
+
+	farm_hay.farm()
+
+	farm_telemetry.phase_end(
+		"hay",
 		start
 	)
 

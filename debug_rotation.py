@@ -1,3 +1,4 @@
+import farm_config
 import farm_rotation
 
 
@@ -43,6 +44,13 @@ set_execution_speed(
 )
 
 
+# The continuous Wood / Hay gain targets are sized for a 32x32
+# farm and can't be reached on a tiny debug world, so cap each
+# phase at a short watchable window instead.
+
+farm_config.SETTINGS["continuous_phase_max_seconds"] = 20
+
+
 quick_print(
 	"[DEBUG]",
 	"world:",
@@ -58,7 +66,8 @@ quick_print(
 # RUN EXACTLY ONE NORMAL ROTATION
 # ============================================================
 #
-# Trees / Hay
+# Wood (continuous, capped above)
+# Hay (continuous, capped above)
 # Carrots
 # Sunflowers
 # Pumpkins

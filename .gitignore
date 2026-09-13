@@ -3,3 +3,6 @@ save.json
 
 # Type stubs generated/supplied for editor autocompletion; not game code
 __builtins__.py
+
+# Local save.json backups (full inventory/unlock snapshots)
+backups/

@@ -63,33 +63,6 @@ def enabled():
 
 
 # ============================================================
-# TREE TILE
-# ============================================================
-
-def is_tree_tile(
-	x,
-	y,
-	size
-):
-
-	if size % 2 == 1:
-
-		if x == size - 1:
-
-			return False
-
-
-		if y == size - 1:
-
-			return False
-
-
-	return (
-		(x + y) % 2 == 0
-	)
-
-
-# ============================================================
 # CARROT SOURCE TILE
 # ============================================================
 
@@ -178,156 +151,6 @@ def scan_carrot_row(
 
 
 # ============================================================
-# TREE SCAN
-# ============================================================
-
-def scan_tree_row(
-	row
-):
-
-	size = get_world_size()
-
-	results = []
-
-
-	farm_common.go_to(
-		0,
-		row
-	)
-
-
-	for x in range(size):
-
-		if is_tree_tile(
-			x,
-			row,
-			size
-		):
-
-			if get_entity_type() == Entities.Tree:
-
-				if can_harvest():
-
-					companion = get_companion()
-
-
-					if companion == None:
-
-						results.append(
-							(
-								x,
-								row,
-								Entities.Tree,
-								None,
-								-1,
-								-1
-							)
-						)
-
-
-					else:
-
-						position = companion[1]
-
-
-						results.append(
-							(
-								x,
-								row,
-								Entities.Tree,
-								companion[0],
-								position[0],
-								position[1]
-							)
-						)
-
-
-		if x < size - 1:
-
-			move(
-				East
-			)
-
-
-	return results
-
-
-# ============================================================
-# GRASS SCAN
-# ============================================================
-
-def scan_grass_row(
-	row
-):
-
-	size = get_world_size()
-
-	results = []
-
-
-	farm_common.go_to(
-		0,
-		row
-	)
-
-
-	for x in range(size):
-
-		if not is_tree_tile(
-			x,
-			row,
-			size
-		):
-
-			if get_entity_type() == Entities.Grass:
-
-				if can_harvest():
-
-					companion = get_companion()
-
-
-					if companion == None:
-
-						results.append(
-							(
-								x,
-								row,
-								Entities.Grass,
-								None,
-								-1,
-								-1
-							)
-						)
-
-
-					else:
-
-						position = companion[1]
-
-
-						results.append(
-							(
-								x,
-								row,
-								Entities.Grass,
-								companion[0],
-								position[0],
-								position[1]
-							)
-						)
-
-
-		if x < size - 1:
-
-			move(
-				East
-			)
-
-
-	return results
-
-
-# ============================================================
 # TARGET SAFETY
 # ============================================================
 
@@ -339,32 +162,12 @@ def target_is_safe(
 ):
 
 	# Carrot source parity -> opposite parity only.
+	#
+	# mode is kept so other source types can be added later.
 
-	if mode == 0:
-
-		return not is_carrot_source(
-			x,
-			y
-		)
-
-
-	# Tree source -> grass-side target.
-
-	if mode == 1:
-
-		return not is_tree_tile(
-			x,
-			y,
-			size
-		)
-
-
-	# Grass source -> former-tree target.
-
-	return is_tree_tile(
+	return not is_carrot_source(
 		x,
-		y,
-		size
+		y
 	)
 
 
@@ -1348,33 +1151,4 @@ def harvest_carrot_field(
 	farm_telemetry.add_counter(
 		"carrot polyculture remaining carrots",
 		remaining
-	)
-
-
-# ============================================================
-# WOOD / HAY POLYCULTURE
-# ============================================================
-
-def harvest_wood_hay_field(
-	size
-):
-
-	# Trees first.
-	#
-	# Once every tree source is harvested, its side of the
-	# checkerboard becomes available for grass companions.
-
-	execute_pass(
-		"tree polyculture",
-		scan_tree_row,
-		1,
-		size
-	)
-
-
-	execute_pass(
-		"grass polyculture",
-		scan_grass_row,
-		2,
-		size
 	)

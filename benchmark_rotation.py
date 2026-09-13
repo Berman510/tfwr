@@ -8,7 +8,8 @@ import farm_telemetry
 #
 # Profiles exactly one:
 #
-#   Trees / Hay
+#   Wood (continuous)
+#   Hay (continuous)
 #   Carrots
 #   Sunflowers
 #   Pumpkins

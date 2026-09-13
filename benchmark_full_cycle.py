@@ -14,7 +14,8 @@ import farm_telemetry
 #
 #   Dinosaur run, IF currently needed
 #
-#   Wood / Hay
+#   Wood (continuous)
+#   Hay (continuous)
 #   Carrots
 #   Sunflowers
 #   Pumpkins
