@@ -234,6 +234,7 @@ exceptions: they switch settings and call production `farm_dinosaurs` /
 | [`sim_dino.py`](archive/sim_dino.py) (`PROBE = True`) | [`dino_probe.py`](archive/dino_probe.py) | Confirms dinosaur rules: next-Apple `measure()`, walls, tail collisions, Bone formula, move time vs. tail length |
 | [`sim_maze.py`](archive/sim_maze.py) | [`maze_ab.py`](archive/maze_ab.py) | Gold: time to +10M. Modes: original solver, full-maze tree paths, split 16/8/6/5/4/3, and 9 = production `farm_maze.farm()`. The header records all four rounds. **Split 5×5 won; now `farm_maze`' default** |
 | [`sim_maze.py`](archive/sim_maze.py) (`PROBE = True`) | [`maze_probe.py`](archive/maze_probe.py) | Confirms maze rules: perfect maze, reuse Gold and wall changes, the 300-reuse cap, drones in mazes, and maze size vs. Weird Substance |
+| — | [`acrobat_run.py`](archive/acrobat_run.py) | **Master Acrobat** ("Do 1000 flips"): `do_a_flip()` always takes 1 s, so it splits 1,050 flips across all free drones. Flips by spawned drones count: 1,056 flips in 34.04 s unlocked it |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
 driver subtracts that time from the `RUN=True` time, so the result measures
