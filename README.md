@@ -73,7 +73,7 @@ plant is harvestable.
 
 ### Dinosaurs (`farm_dinosaurs.farm`)
 
-Rules confirmed by [`dino_probe.py`](dino_probe.py) (32×32, Dinosaurs level 6):
+Rules confirmed by [`dino_probe.py`](archive/dino_probe.py) (32×32, Dinosaurs level 6):
 
 - Putting on the Dinosaur Hat spawns an Apple under the drone. While the
   drone stands on an Apple, `measure()` returns where the **next** Apple will
@@ -103,12 +103,12 @@ One caveat: skipped tiles stay as gaps inside the body until the tail passes
 them, and the tail pauses while an Apple is eaten. Trapping the head would take
 about 8 Apples spawning almost exactly in its path in a row. If a planned move is ever
 blocked anyway, the drone takes any open neighbour, stops taking shortcuts for
-the rest of the run, and counts an emergency move. `sim_dino` reports that count
-and whether each run filled the whole field.
+the rest of the run, and counts an emergency move. In `sim_dino` (archived),
+every benchmark run filled the whole field with 0 emergency moves.
 
 ### Gold (`farm_maze.farm`)
 
-Rules confirmed by [`maze_probe.py`](maze_probe.py) (32×32, Mazes level 6):
+Rules confirmed by [`maze_probe.py`](archive/maze_probe.py) (32×32, Mazes level 6):
 
 - A fresh maze is **perfect**: exactly one route between any two tiles. A move
   takes about 0.05 s.
@@ -175,8 +175,6 @@ shared by all:  farm_config · farm_common · farm_megafarm · farm_telemetry
 tools:  simulate_rotation → benchmark_rotation → farm_rotation
         benchmark_full_cycle → farm_maze, farm_dinosaurs, farm_rotation
         debug_rotation → farm_rotation
-        sim_dino → dino_ab → farm_dinosaurs   (+ dino_probe)
-        sim_maze → maze_ab → farm_maze        (+ maze_probe)
 ```
 
 ---
@@ -210,20 +208,18 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 | [`benchmark_full_cycle.py`](benchmark_full_cycle.py) | Profiles maze + dinosaurs (if needed) + rotation |
 | [`simulate_rotation.py`](simulate_rotation.py) | Runs `benchmark_rotation` in `simulate()` with a fixed seed and the current unlocks and inventory. The real farm is not touched |
 | [`debug_rotation.py`](debug_rotation.py) | Runs one rotation on a small world (default 6×6) at adjustable speed so you can watch it (continuous phases capped at 20 s) |
-| [`sim_dino.py`](sim_dino.py) → [`dino_ab.py`](dino_ab.py) | Dinosaur run time: plain cycle vs. shortcuts until 10% / 25% / 50% fill. `dino_ab` calls production `farm_dinosaurs` directly; Bones must stay at full-field yield |
-| [`sim_dino.py`](sim_dino.py) (`PROBE = True`) → [`dino_probe.py`](dino_probe.py) | Confirms dinosaur rules: next-Apple `measure()`, walls, tail collisions, Bone formula, move time vs. tail length |
-| [`sim_maze.py`](sim_maze.py) → [`maze_ab.py`](maze_ab.py) | Gold: time to +10M. Modes: original solver, full-maze tree paths, split 16/8/6/5/4/3, and 9 = production `farm_maze.farm()`. The header records every round's results |
-| [`sim_maze.py`](sim_maze.py) (`PROBE = True`) → [`maze_probe.py`](maze_probe.py) | Confirms maze rules: perfect maze, reuse Gold and wall changes, the 300-reuse cap, drones in mazes, and maze size vs. Weird Substance |
 
 ### Archived experiments (`archive/`)
 
 **Retired.** The winning methods now run in `main` (`farm_wood`, `farm_hay`,
-`sun_sort`), and these scripts are kept in [`archive/`](archive/) for
-reference. The game doesn't show subfolders, so they can't be run from there;
-copy one back to the top level (and create its code window first) to re-run
-it. Each `sim_*` driver ran its target through `simulate()` over several seeds
-and reported a `=== RESULT ===` winner; the targets stand alone and import
-nothing.
+`sun_sort`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
+[`archive/`](archive/) for reference. The game doesn't show subfolders, so they
+can't be run from there. To re-run one, create its code window in the game
+first, then copy it back to the top level. Each `sim_*` driver ran its target
+through `simulate()` over several seeds and reported a `=== RESULT ===` winner.
+Most targets stand alone and import nothing. `dino_ab` and `maze_ab` are the
+exceptions: they switch settings and call production `farm_dinosaurs` /
+`farm_maze`, so re-running them measures the current code.
 
 | Driver | Target | Question it answers |
 |---|---|---|
@@ -234,6 +230,10 @@ nothing.
 | [`sim_sun.py`](archive/sim_sun.py) | [`sun_ab.py`](archive/sun_ab.py) | Sunflower harvest order: current vs. serpentine vs. nearest-neighbour route. **Serpentine won; now in `sun_sort`** |
 | — | [`hay_run.py`](archive/hay_run.py) | The real 200M-Hay achievement run (fixed-companion checkerboard). **Method now in `farm_hay`** |
 | — | [`wood_run.py`](archive/wood_run.py) | The real 1B-Wood achievement run (pre-watered Tree/Bush checkerboard, avg 53.98 s in sim). **Method now in `farm_wood`** |
+| [`sim_dino.py`](archive/sim_dino.py) | [`dino_ab.py`](archive/dino_ab.py) | Dinosaur run time: plain cycle vs. shortcuts until 10% / 25% / 50% fill, with Bones kept at full-field yield. **25% won; now `farm_dinosaurs`' default** |
+| [`sim_dino.py`](archive/sim_dino.py) (`PROBE = True`) | [`dino_probe.py`](archive/dino_probe.py) | Confirms dinosaur rules: next-Apple `measure()`, walls, tail collisions, Bone formula, move time vs. tail length |
+| [`sim_maze.py`](archive/sim_maze.py) | [`maze_ab.py`](archive/maze_ab.py) | Gold: time to +10M. Modes: original solver, full-maze tree paths, split 16/8/6/5/4/3, and 9 = production `farm_maze.farm()`. The header records all four rounds. **Split 5×5 won; now `farm_maze`' default** |
+| [`sim_maze.py`](archive/sim_maze.py) (`PROBE = True`) | [`maze_probe.py`](archive/maze_probe.py) | Confirms maze rules: perfect maze, reuse Gold and wall changes, the 300-reuse cap, drones in mazes, and maze size vs. Weird Substance |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
 driver subtracts that time from the `RUN=True` time, so the result measures
@@ -369,6 +369,10 @@ and in this table.
 - **New script files:** create the code window in the game *before* the file
   is written from outside (or close the game first). Otherwise the game deletes
   any `.py` it doesn't know about the next time it saves.
+- **Retiring scripts:** copy them into `archive/` first, then close their
+  windows *in the game* (which deletes the top-level files) and exit normally.
+  Files deleted while the game is closed come back on the next launch, because
+  Steam Cloud syncs this save folder.
 - **Simulation drivers** report like [`sim_wood.py`](archive/sim_wood.py):
   `quick_print` to `output.txt` between `<<< NAME_BENCH_BEGIN/END >>>`
   markers, a header, per-mode AVG/MIN/MAX, and a final `=== RESULT ===`.
