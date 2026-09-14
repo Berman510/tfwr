@@ -8,16 +8,17 @@
 #   Fastest_Reset: "Completely automate the game from a single
 #   farm plot to unlocking the leaderboards again."
 #
-# FILE = "lb_probe" for now: a staged probe of what a reset
-# starts with. SPEEDUP only sets the starting playback speed.
+# FILE = "full_run": sim_full round 13 unlocked the Leaderboard
+# in 91,502 simulated sec. SPEEDUP only sets the starting
+# playback speed.
 # ============================================================
 
 
 LEADERBOARD = Leaderboards.Fastest_Reset
 
-FILE = "lb_probe"
+FILE = "full_run"
 
-SPEEDUP = 1
+SPEEDUP = 256
 
 
 leaderboard_run(
