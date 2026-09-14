@@ -1,0 +1,5 @@
+# The game saves scripts with LF line endings. Keep .py files LF in
+# the repo and in the working copy, regardless of core.autocrlf, so
+# files re-saved by the game never show as modified.
+*.py text eol=lf
+.gitattributes text eol=lf
