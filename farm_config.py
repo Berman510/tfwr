@@ -39,6 +39,11 @@ SETTINGS = {
 	# ~294M Carrots/min at 32x32 / 32 drones.
 	"carrot_gain_target": 200000000,
 
+	# Pumpkin phase (pumpkin_run method, Pumpkin Master): keep
+	# harvesting gapped mega-pumpkin blocks until Pumpkins have
+	# grown by this much. ~23M Pumpkins/min at 32x32 / 32 drones.
+	"pumpkin_gain_target": 20000000,
+
 	# Safety cap so a phase can never run forever if production
 	# stalls (e.g. replanting becomes unaffordable).
 	"continuous_phase_max_seconds": 180,
@@ -147,6 +152,7 @@ FERTILIZE = {
 	# carrot_probe: Fertilizer HALVES carrot yield (512 -> 256).
 	Entities.Carrot: False,
 	Entities.Sunflower: True,
-	Entities.Pumpkin: True,
+	# pumpkin_probe: Fertilizer HALVES pumpkin yield (512 -> 256).
+	Entities.Pumpkin: False,
 	Entities.Cactus: True
 }
