@@ -255,15 +255,16 @@ def build_normal_reserve():
 	# PUMPKINS
 	# --------------------------------------------------------
 	#
-	# Pumpkins can die while the mega-pumpkin is forming.
+	# The continuous pumpkin phase replants every block after
+	# each harvest, plus dead pumpkins: ~11 fields of plantings
+	# per +20M Pumpkins (pumpkin_run: 14,208 for +25M).
 	#
-	# Reserve 3 complete fields to leave lots of repair
-	# headroom.
+	# Reserve 12 complete fields.
 
 	add_entity_cost(
 		reserve,
 		Entities.Pumpkin,
-		area * 3
+		area * 12
 	)
 
 

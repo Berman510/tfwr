@@ -44,7 +44,7 @@ farm, so an unlock in the middle of a crop phase would destroy it.
 Each phase checks up front that it can pay for a whole field. If it can't, it
 skips the phase instead of starting a field it can't finish. The one exception
 is Hay: each companion tile uses the first affordable Bush/Tree/Carrot. Wood,
-Hay, Carrots and Sunflowers run until their gain target, with
+Hay, Carrots, Sunflowers and Pumpkins run until their gain target, with
 `continuous_phase_max_seconds` as a safety cap.
 
 1. **Wood** ([`farm_wood`](farm_wood.py), the `wood_run` achievement method):
@@ -88,9 +88,26 @@ Hay, Carrots and Sunflowers run until their gain target, with
    About 1 in 9 replanted flowers has 15 petals, so the field keeps paying
    bonuses without spending actions on re-rolls. Drones spend Power to move
    and act faster, so the inventory gain slightly under-counts harvested Power.
-5. **Pumpkins**: plant the whole field and replant dead pumpkins until
-   the pumpkin at (0,0) and the one at (n-1,n-1) have the same `measure()` id
-   (one merged mega-pumpkin). Then harvest once.
+5. **Pumpkins** ([`farm_pumpkin`](farm_pumpkin.py), the `pumpkin_run` Pumpkin
+   Master method): cut the field into horizontal bands of heights 5, 5, 4, 4,
+   4, 4, each followed by a bare-soil gap row. Each band is a row of square
+   blocks of its height with 1-tile gaps: 10 × 5×5 and 22 × 4×4, one drone
+   each. Every drone plants and waters its block to 0.9. It then revisits only
+   unfinished tiles (plant + water empty or dead ones, skip growing ones) until
+   the whole block is grown, harvests the mega pumpkin, and starts over, until
+   Pumpkins have grown by `pumpkin_gain_target`. Rules confirmed by
+   [`pumpkin_probe.py`](archive/pumpkin_probe.py):
+   - A Pumpkin costs 512 Carrots. A mega pumpkin pays
+     **512 × pumpkins × min(side, 6)**: 4×4 = 32,768, 5×5 = 64,000.
+   - Growth takes ~2.05 s plain, ~0.41 s watered. 20–30% die when they grow;
+     a grown live pumpkin stays alive. **Fertilizer halves pumpkin yield**, so
+     it's off for Pumpkins.
+   - Grown pumpkins merge with every grown neighbour, and only into squares.
+     Blocks placed edge to edge merge with each other, so they need gaps,
+     including across the world wrap.
+
+   Using the spare rows for bigger square blocks beat a plain 4×4 grid, a 6×6
+   band and a 5×5 grid.
 6. **Cactus**: parallel cocktail-shaker sort of every row, then every column
    ([`cact_sort`](cact_sort.py)), then one chain harvest at (0,0).
 
@@ -194,6 +211,7 @@ main
     ├── farm_hay        continuous Hay phase    (from hay_run)
     ├── farm_carrot     continuous Carrot phase (from carrot_run)
     ├── farm_sunflower  continuous Sunflower phase (from sunflower_run)
+    ├── farm_pumpkin    continuous Pumpkin phase (from pumpkin_run)
     └── cact_sort       Cactus sorter
 
 shared by all:  farm_config · farm_common · farm_megafarm · farm_telemetry
@@ -225,6 +243,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 | [`farm_telemetry.py`](farm_telemetry.py) | Profiler: phase/sub-phase timing, resource deltas, drone utilisation, counters |
 | [`cact_sort.py`](cact_sort.py) | Parallel cactus row/column sorter |
 | [`farm_sunflower.py`](farm_sunflower.py) | Continuous Sunflower phase: plant + water, drones harvest mature flowers, replant and water their rows until `sunflower_gain_target` |
+| [`farm_pumpkin.py`](farm_pumpkin.py) | Continuous Pumpkin phase: gapped square blocks in bands (10 × 5×5 + 22 × 4×4), one drone per block, repair unfinished tiles, harvest each mega pumpkin until `pumpkin_gain_target` |
 
 ### Benchmarking and debugging (run manually)
 
@@ -238,7 +257,7 @@ tools:  simulate_rotation → benchmark_rotation → farm_rotation
 ### Archived experiments (`archive/`)
 
 **Retired.** The winning methods now run in `main` (`farm_wood`, `farm_hay`,
-`farm_sunflower`, `farm_carrot`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
+`farm_sunflower`, `farm_carrot`, `farm_pumpkin`, `farm_dinosaurs`, `farm_maze`), and these scripts are kept in
 [`archive/`](archive/) for reference. The game doesn't show subfolders, so they
 can't be run from there. To re-run one, create its code window in the game
 first, then copy it back to the top level. Each `sim_*` driver ran its target
@@ -269,6 +288,9 @@ exceptions: they switch settings and call production `farm_dinosaurs` /
 | [`sim_carrot.py`](archive/sim_carrot.py) (`PROBE = True`) | [`carrot_probe.py`](archive/carrot_probe.py) | Confirms Carrot rules: cost, base vs. companion yield (exact type + tile, young companion OK), fixed requests, growth with water, Fertilizer halving yield |
 | — | [`carrot_run.py`](archive/carrot_run.py) | **Carrot Master** ("Farm 200 million carrots in 1 minute"): ¼-density pair sweep on 32 drones. Real game: +251M Carrots in 50.95 s, and it unlocked |
 | — | [`farm_polyculture.py`](archive/farm_polyculture.py) | The old Carrot companion harvest (scan → plan → fused execute → reject cleanup), used only by the old `farm_carrots`. Retired with it |
+| [`sim_pumpkin.py`](archive/sim_pumpkin.py) | [`pumpkin_ab.py`](archive/pumpkin_ab.py) | Pumpkins: time to +20M after setup, with real Carrot/Water stock. Round 1: old whole-field `farm_pumpkins` 153.86 s, edge-to-edge 6×6 / 8×8 blocks 104.23 / 147.53 s (neighbouring blocks merged). Round 2 (gapped blocks): 6×6 82.77 s, 5×5 65.21 s, 4×4 63.16 s. Round 3 (no corner check): 4×4 water 0.9 54.74 s, water 0.5 60.40 s, no water 136.25 s, 5×5 water 0.5 58.39 s. Round 4 (use the whole field): **bands 5,5,4,4,4,4 51.60 s (winner)**, bands 6,4,4,4,4,4 52.37 s, 5×5 water 0.9 58.04 s. Mode 15 = production `farm_pumpkin`: 60.99 s including setup. **Now `farm_pumpkin`** |
+| [`sim_pumpkin.py`](archive/sim_pumpkin.py) (`PROBE = True`) | [`pumpkin_probe.py`](archive/pumpkin_probe.py) | Confirms Pumpkin rules: cost, single vs. fertilized yield, growth with water/Fertilizer, death rate, mega-pumpkin yield by side |
+| — | [`pumpkin_run.py`](archive/pumpkin_run.py) | **Pumpkin Master** ("Farm 20 million pumpkins in 1 minute"): 5,5,4,4,4,4 gapped block bands on 32 drones. Real game: +23.8M Pumpkins in the first 60 s (+25.1M in 64.83 s), and it unlocked |
 
 Most experiment scripts use **`RUN=False`** for a setup-only baseline. The
 driver subtracts that time from the `RUN=True` time, so the result measures
@@ -320,6 +342,7 @@ All in [`farm_config.py`](farm_config.py):
 | `hay_gain_target` | `200000000` | The Hay phase keeps harvesting until Hay has grown by this much |
 | `sunflower_gain_target` | `20000` | The Sunflower phase keeps harvesting until Power has grown by this much (~27,700 Power/min on 32×32) |
 | `carrot_gain_target` | `200000000` | The Carrot phase keeps harvesting until Carrots have grown by this much (~294M Carrots/min on 32×32) |
+| `pumpkin_gain_target` | `20000000` | The Pumpkin phase keeps harvesting until Pumpkins have grown by this much (~23M Pumpkins/min on 32×32) |
 | `continuous_phase_max_seconds` | `180` | Safety cap on each continuous phase's harvest loop |
 | `timing_enabled` | `True` | Print `[TIMING]` lines from `main` |
 | `auto_unlock_enabled` | `True` | Allow `farm_unlocks.manage()` to buy upgrades |
@@ -332,8 +355,8 @@ All in [`farm_config.py`](farm_config.py):
 | `dinosaur_shortcuts` | `True` | Take safe shortcuts along the dinosaur cycle (`False` = plain cycle) |
 | `dinosaur_shortcut_max_fill` | `0.25` | Stop taking shortcuts once the tail covers this fraction of the field, then run the plain cycle |
 
-`HAT_ENABLED` (all off) and `FERTILIZE` (on for everything except Carrots,
-where Fertilizer halves the yield) are per-crop toggles.
+`HAT_ENABLED` (all off) and `FERTILIZE` (on for everything except Carrots and
+Pumpkins, where Fertilizer halves the yield) are per-crop toggles.
 
 ### Upgrade priority
 
@@ -346,7 +369,8 @@ again from the top, because an upgrade can change world size, costs, or drone
 count.
 
 Reserves kept before any purchase:
-- 2× one rotation's planting cost (pumpkins count as 3 fields for replants)
+- 2× one rotation's planting cost (pumpkins count as 12 fields: the
+  continuous phase replants every block after each harvest)
 - the Gold and Bone floors, **except** for an upgrade that costs at least the
   whole floor. The floor is the savings for that upgrade, so it isn't reserved
   on top of the cost (otherwise a 100M-Gold upgrade would need 200M).
@@ -375,6 +399,8 @@ Reserves kept before any purchase:
 | **Power: production `farm_sunflower`** | same, time includes its own planting/watering | 86.07 s | **35.61 s**, 3/3 under 60 s. Real game: +15,006 Power in 32.63 s |
 | Carrots: ¼-density pair sweep (`sim_carrot`) | 32×32, 32 drones, +200M Carrots after setup, seeds 1–3 | 244.16 s (old `farm_carrots` + Polyculture) | **40.87 s (6.0×)**, 293.6M Carrots/min. Real game: +251M in 50.95 s |
 | **Carrots: production `farm_carrot`** | same, time includes its own soil/planting | 244.16 s | **50.95 s**, 3/3 under 60 s |
+| Pumpkins: 5,5,4,4,4,4 gapped block bands (`sim_pumpkin`) | 32×32, 32 drones, +20M Pumpkins after setup, seeds 1–3 | 153.86 s (old single mega pumpkin) | **51.60 s (3.0×)**, 23.3M Pumpkins/min. Real game: +23.8M in the first 60 s |
+| **Pumpkins: production `farm_pumpkin`** | same, time includes its own soil/planting (~8–9 s) | 153.86 s | **60.99 s** (60.59 / 61.60 / 60.78), ~52 s of harvesting |
 
 When a new experiment wins, record the numbers in the module header comment
 and in this table.
